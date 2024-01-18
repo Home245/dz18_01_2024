@@ -1,0 +1,100 @@
+package com.example.demo;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+@Controller
+@RestController
+@RequestMapping("/api")
+public class ApiController {
+    private final UserRepository userRepository;
+
+    public ApiController(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    //curl -v -X POST -H "Content-Type: application/json" localhost:8080/api/users/darksouls1thebest -d "{\"username\":\"Manus\",\"password\":\"darksouls1thebest\", \"age\":\"100\"}"
+    @PostMapping("/users/{repeatPassword}")
+    public User addUser(@RequestBody User user, @PathVariable("repeatPassword") String repeatPassword) {
+        List<User> users = userRepository.findByUsername(user.getUsername());
+        if (user.getPassword().equals(repeatPassword)) {
+            if (users.isEmpty()) {
+                return userRepository.save(new User(user.getUsername(), user.getPassword(), user.getAge()));
+            } else {
+                throw new ResponseStatusException(HttpStatus.CONFLICT);
+            }
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    //curl -v -X DELETE -H "Content-Type: application/json" localhost:8080/api/users/1
+    @DeleteMapping("/users/{id}")
+    public HttpStatus deleteUser(@PathVariable("id") long id) {
+        Optional<User> userData = userRepository.findById(id);
+        if (userData.isPresent()) {
+            userRepository.deleteById(id);
+            return HttpStatus.NO_CONTENT;
+        } else {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    //curl -v -X PUT -H "Content-Type: application/json" localhost:8080/api/users/1/darksouls1thebest -d "Manus"
+    @PutMapping("/users/{id}/{repeatPassword}")
+    public User updateUser(@PathVariable("id") long id, @PathVariable("repeatPassword") String repeatPassword, @RequestBody String username) {
+        Optional<User> userData = userRepository.findById(id);
+        if (userData.isPresent()) {
+            User updatingUser = userData.get();
+            if (repeatPassword.equals(updatingUser.getPassword())) {
+                updatingUser.setUsername(username);
+                return userRepository.save(updatingUser);
+            } else {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+            }
+        } else {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    //>curl -v -X GET -H "Content-Type: application/json" localhost:8080/api/users/2
+    @GetMapping("/users/{id}")
+    public UserInfo getUserById(@PathVariable("id") long id) {
+        Optional<User> userData = userRepository.findById(id);
+        if (userData.isPresent()) {
+            User user = userData.get();
+            return new UserInfo(user.getUsername(), user.getId(), user.getAge());
+        } else {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    //curl -v -X GET -H "Content-Type: application/json" localhost:8080/api/users?age=100
+    @GetMapping("/users")
+    public List<UserInfo> getAllNeedUsers(@RequestParam(value = "age", defaultValue = "-1") int age) {
+        List<User> users = new ArrayList<>();
+        userRepository.findAll().forEach(users::add);
+        List<UserInfo> InfoAnswer = new ArrayList<>();
+        if (age > 0) {
+            for (int i = 0; i < users.size(); i++){
+                User user = users.get(i);
+                if (( user.getAge() - age) > -5 && (user.getAge() - age) < 5){
+                    UserInfo info = new UserInfo(user.getUsername(), user.getId(), user.getAge());
+                    InfoAnswer.add(info);
+                }
+            }
+
+        } else {
+            for (int i = 0; i < users.size(); i++) {
+                User user = users.get(i);
+                UserInfo info = new UserInfo(user.getUsername(), user.getId(), user.getAge());
+                InfoAnswer.add(info);
+            }
+        }
+        return InfoAnswer;
+    }
+}
